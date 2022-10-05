@@ -3,6 +3,7 @@ import 'package:todoapp/app/modules/home/widgets/app_bar_widget.dart';
 import 'package:todoapp/app/modules/home/widgets/item_list_widget.dart';
 import 'package:todoapp/app/modules/home/widgets/title_widget.dart';
 import 'package:todoapp/app/shared/models/task_model.dart';
+import 'package:todoapp/app/shared/repository/task_repository.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,26 +13,28 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<TaskModel> allTasks = [
-    TaskModel(
-      isToday: true,
-      time: '10:00',
-      title: 'Fazer um app',
-      isFinished: false,
-    ),
-    TaskModel(
-      isToday: true,
-      time: '10:00',
-      title: 'Fazer atividade',
-      isFinished: true,
-    ),
-    TaskModel(
-      isToday: true,
-      time: '10:00',
-      isFinished: false,
-      title: 'Limpar a casa',
-    ),
-  ];
+  List<TaskModel> allTasks = [];
+
+  bool isLoading = false;
+
+  void getAllTasks() async {
+    setState(() {
+      isLoading = true;
+    });
+    final taskRepository = TaskRepository();
+
+    final tasks = await taskRepository.getAll();
+    setState(() {
+      allTasks = tasks;
+      isLoading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getAllTasks();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +44,8 @@ class _HomePageState extends State<HomePage> {
         onPressed: () async {
           final result = await Navigator.pushNamed(context, '/add-task');
           if (result != null) {
-            setState(() {
-              allTasks.add(result as TaskModel);
-            });
+            await TaskRepository.addNewTask(result as TaskModel);
+            getAllTasks();
           }
         },
         child: const Icon(Icons.add),
@@ -55,7 +57,7 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const TitleWidget(text: 'Today'),
+            const TitleWidget(text: 'Todo'),
             _buildTaskList(),
           ],
         ),
@@ -64,10 +66,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTaskList() {
+    if (isLoading) {
+      return const CircularProgressIndicator();
+    }
+    if (allTasks.isEmpty) {
+      return const Center(child: Text("Sem atividades registradas"));
+    }
     return Expanded(
       child: ListView.builder(
         itemBuilder: (context, index) => ItemListWidget(
           item: allTasks[index],
+          changeTask: () async {
+            await TaskRepository.changeTheTask(index, allTasks[index]);
+            getAllTasks();
+          },
+          deleteTask: () async {
+            await TaskRepository.deleteTask(allTasks[index]);
+            getAllTasks();
+          },
         ),
         itemCount: allTasks.length,
       ),
